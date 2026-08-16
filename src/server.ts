@@ -1,23 +1,54 @@
 import express from "express";
+import mysql from 'mysql2/promise';
+import { query } from "./pg";
+
 
 
 const app = express();
 
 app.use(express.json());
 
+type Produto = {
+  id: number;
+  nome: string;
+  Url: string;
+};
+
 app.get("/produto/:id", async (req, res) => {
 
-    try {
-    const { id } = req.params;
-    const resposta = await fetch(`http://localhost:3000/produto/${id}`, {
-    signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
-  });
-    const data = await resposta.json();
-    res.json(data);
-} catch (error) {
-console.error(error);
-res.status(500).json({ error: "Ocorreu um erro ao buscar o produto." });
-}
+  try {
+
+    const produtos = await query('SELECT * FROM produtos') as Produto[];
+
+    produtos.forEach(async (produto) => {
+      console.log(`Buscando preço do produto: ${produto.nome} - ID: ${produto.id}`);
+        const resposta = await fetch(produto.Url, {
+            signal: AbortSignal.timeout(5000)
+        });
+        const data = await resposta.json();
+
+   const preco = await query(
+  'SELECT * FROM precos WHERE preco_centavos = ? AND product_id = ?',
+  [produto.id, data.preco]
+) as Array<{ id: number; product_id: number; preco_centavos: number; status: string }>;       
+
+console.log(`Preço encontrado: ${preco.length}, Alem disso ID encontrado ${produto.id}` )
+
+  if (preco.length === 0){
+    console.log("Produto não encontrado, inserindo novo preço")
+    console.log(produto.id)
+    const precoAtualizado = await query(`INSERT INTO precos (product_id,preco_centavos,status) VALUES (${produto.id}, ${data.preco},"SUCESSO")`)
+  }
+    });
+
+
+    return res.json(produtos);
+
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Ocorreu um erro ao buscar o produto." });
+  }
 });
 
 
