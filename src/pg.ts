@@ -8,6 +8,8 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD
 })
 
+
+
 export async function query(sql: string, values?: any[]) {
     const [results] = await pool.query(sql, values)
 

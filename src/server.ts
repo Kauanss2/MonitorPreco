@@ -14,13 +14,25 @@ type Produto = {
   Url: string;
 };
 
-app.get("/produto/:id", async (req, res) => {
+type ProdutoPreco = Produto & {
+  preco:number;
+  precoAtualizado?: number;
+}
+
+
+app.get("/produto", async (req, res) => {
 
   try {
 
+
+
+
     const produtos = await query('SELECT * FROM produtos') as Produto[];
 
-    produtos.forEach(async (produto) => {
+    const produtosComPreco: ProdutoPreco[] = [];
+
+
+    for  (const produto of produtos) {
       console.log(`Buscando preço do produto: ${produto.nome} - ID: ${produto.id}`);
         const resposta = await fetch(produto.Url, {
             signal: AbortSignal.timeout(5000)
@@ -29,20 +41,31 @@ app.get("/produto/:id", async (req, res) => {
 
    const preco = await query(
   'SELECT * FROM precos WHERE preco_centavos = ? AND product_id = ?',
-  [produto.id, data.preco]
+  [data.preco, produto.id]
 ) as Array<{ id: number; product_id: number; preco_centavos: number; status: string }>;       
 
+console.log(preco)
 console.log(`Preço encontrado: ${preco.length}, Alem disso ID encontrado ${produto.id}` )
 
   if (preco.length === 0){
     console.log("Produto não encontrado, inserindo novo preço")
     console.log(produto.id)
-    const precoAtualizado = await query(`INSERT INTO precos (product_id,preco_centavos,status) VALUES (${produto.id}, ${data.preco},"SUCESSO")`)
+   const precoAtualizado = await query(
+  'INSERT INTO precos (product_id, preco_centavos, status) VALUES (?, ?, ?)',
+  [produto.id, data.preco, 'SUCESSO']
+
+)
+
   }
-    });
+
+   produtosComPreco.push({
+    ...produto,
+    preco: data.preco,
+  });
+    }
 
 
-    return res.json(produtos);
+    return res.json(produtosComPreco);
 
 
   } catch (error) {
