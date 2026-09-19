@@ -1,5 +1,5 @@
 import fs from "fs";
-import { query } from "./pg";
+import { query } from "./mysql";
 
 type Migration = {
     nome: string;
@@ -7,6 +7,57 @@ type Migration = {
 
 export async function Migrate() {
 
+
+    try {
+        await createTableMigration()
+
+        const arquivos = await lerArquivos("./src/migrations")
+
+        const migrations = await query(
+            `SELECT nome FROM migrations`
+        ) as Migration[];
+
+        const pendentes = arquivos.filter(arquivo => {
+            return !migrations.some(
+                migration => migration.nome === arquivo
+            );
+        });
+
+        console.log(pendentes)
+
+        await incrementarMigration(pendentes)
+
+        console.log({ Sucess: "Migration Incrementada" })
+    }
+    catch (err) {
+        console.error({ error: "Error Segue" + err })
+    }
+    // ...
+
+    // MELHORIA FUTURA CASO O SQL RODE A PRIMEIRA PARTE E PARE A SEGUNDA NÃO É
+    //  RETREATADO NEHUM ERRO NEM ROLLBACK NÃO TENHO CERTEZA MAS CREIO QUE O 
+    // CERTO SEJA ROLLBACK
+
+}
+
+
+async function lerArquivos(caminho: string): Promise<string[]> {
+    const result = fs.readdirSync(caminho).sort()
+    return result
+}
+
+async function incrementarMigration(pendentes: string[]) {
+    for (const arquivo of pendentes) {
+        const sql = await fs.promises.readFile(`./src/migrations/${arquivo}`, "utf-8");
+        await query(sql)
+        const result = await query('INSERT INTO migrations (nome) VALUES (?)', [arquivo])
+
+    }
+
+
+}
+
+async function createTableMigration() {
     await query(`
         CREATE TABLE IF NOT EXISTS migrations (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -14,35 +65,9 @@ export async function Migrate() {
             executado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     `);
-
-    const arquivos = fs.readdirSync("./src/migrations").sort()
-    console.log(arquivos)
-
-    const migrations = await query(
-        `SELECT nome FROM migrations`
-    ) as Migration[];
-
-    const pendentes = arquivos.filter(arquivo => {
-        return !migrations.some(
-            migration => migration.nome === arquivo
-        );
-    });
-
-    // ...
-    for (const arquivo of pendentes) {
-        console.log(arquivo);
-        const sql = await fs.promises.readFile(`./src/migrations/${arquivo}`, "utf-8");
-        await query(sql)
-        await query('INSERT INTO migrations (nome) VALUES (?)', [arquivo])
-    }
-
-    // MELHORIA FUTURA CASO O SQL RODE A PRIMEIRA PARTE E PARE A SEGUNDA NÃO É
-    //  RETREATADO NEHUM ERRO NEM ROLLBACK NÃO TENHO CERTEZA MAS CREIO QUE O 
-    // CERTO SEJA ROLLBACK
-
 }
-try {
-    Migrate();
-} catch (err) {
+
+Migrate().catch((err) => {
     console.error(err)
-}
+    process.exit(1)
+})
