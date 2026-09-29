@@ -1,4 +1,4 @@
-import { query } from "./pg";
+import { query } from "./mysql";
 
 // ============================================================
 // AJUSTE OS NOMES DE COLUNA se não baterem com suas migrations.
